@@ -189,36 +189,43 @@ DATABASE_URL=postgresql://user:password@localhost:5432/rockyconverter
 DATABASE_URL=mysql://user:password@localhost:3306/rockyconverter
 ```
 
-### 2. Serveur web (exemple avec Nginx + Gunicorn)
+### 2. Serveur web et déploiement automatique
 
+**Installation automatique (recommandée) :**
 ```bash
-# Installer Gunicorn
+# Le script d'installation en mode production configure automatiquement :
+# - Gunicorn avec configuration optimisée
+# - Service systemd pour auto-démarrage
+# - Configuration Nginx prête à l'emploi
+./install.sh -e prod
+```
+
+**Configuration manuelle :**
+```bash
+# Installer Gunicorn (déjà inclus dans requirements-production.txt)
 pip install gunicorn
 
 # Tester Gunicorn
-gunicorn RockyConverterWeb.wsgi:application --bind 0.0.0.0:8000
+gunicorn --config gunicorn.conf.py RockyConverterWeb.wsgi:application
 
-# Configuration Nginx (exemple)
-# /etc/nginx/sites-available/rockyconverter
-server {
-    listen 80;
-    server_name votre-domaine.com;
-    
-    location /static/ {
-        alias /path/to/RockyConverterWeb/static/;
-    }
-    
-    location /media/ {
-        alias /path/to/RockyConverterWeb/media/;
-    }
-    
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
+# Installer et configurer Nginx
+sudo apt install nginx
+sudo cp nginx.conf.example /etc/nginx/sites-available/rockyconverter
+sudo nano /etc/nginx/sites-available/rockyconverter  # Personnaliser
+sudo ln -s /etc/nginx/sites-available/rockyconverter /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl restart nginx
+
+# Configurer le service systemd
+sudo cp rockyconverter.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable rockyconverter
+sudo systemctl start rockyconverter
 ```
+
+**Les fichiers fournis :**
+- `gunicorn.conf.py` : Configuration Gunicorn optimisée
+- `rockyconverter.service` : Service systemd pour auto-démarrage
+- `nginx.conf.example` : Configuration Nginx sécurisée avec support 5GB uploads
 
 ## �️ Désinstallation
 

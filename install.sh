@@ -183,6 +183,109 @@ mkdir -p media/albums
 chmod 755 media/albums
 echo "✅ Dossiers configurés"
 
+# Configuration spécifique à la production
+if [[ "$ENVIRONMENT" == "prod" ]]; then
+    echo ""
+    echo "🔧 Configuration de production..."
+    
+    # Tester Gunicorn
+    echo "🧪 Test de Gunicorn..."
+    if python -m gunicorn --version >/dev/null 2>&1; then
+        echo "✅ Gunicorn installé et fonctionnel"
+    else
+        echo "❌ Problème avec Gunicorn"
+        exit 1
+    fi
+    
+    # Créer la configuration Gunicorn si elle n'existe pas
+    if [ ! -f "gunicorn.conf.py" ]; then
+        echo "⚙️ Création de la configuration Gunicorn..."
+        cat > gunicorn.conf.py << 'EOF'
+# Configuration Gunicorn pour Rocky Converter Web
+import multiprocessing
+
+# Serveur
+bind = "127.0.0.1:8000"
+workers = multiprocessing.cpu_count() * 2 + 1
+worker_class = "sync"
+worker_connections = 1000
+timeout = 30
+keepalive = 2
+
+# Logging
+loglevel = "info"
+accesslog = "/var/log/gunicorn/access.log"
+errorlog = "/var/log/gunicorn/error.log"
+
+# Process naming
+proc_name = "rockyconverter_gunicorn"
+
+# Security
+limit_request_fields = 100
+limit_request_field_size = 8190
+limit_request_line = 4094
+
+# Performance
+preload_app = True
+max_requests = 1000
+max_requests_jitter = 50
+EOF
+        echo "✅ Configuration Gunicorn créée"
+    else
+        echo "✅ Configuration Gunicorn existante trouvée"
+    fi
+    
+    # Créer les dossiers de logs
+    echo "📝 Configuration des logs de production..."
+    sudo mkdir -p /var/log/gunicorn 2>/dev/null || {
+        echo "⚠️  Impossible de créer /var/log/gunicorn (permissions)"
+        echo "   Vous devrez le créer manuellement :"
+        echo "   sudo mkdir -p /var/log/gunicorn"
+        echo "   sudo chown -R $USER:$USER /var/log/gunicorn"
+    }
+    
+    # Collecter les fichiers statiques
+    echo "📦 Collection des fichiers statiques..."
+    python manage.py collectstatic --noinput 2>/dev/null || {
+        echo "⚠️  Collection des fichiers statiques échouée (normal si STATIC_ROOT non configuré)"
+        echo "   Configurez STATIC_ROOT dans .env puis relancez :"
+        echo "   python manage.py collectstatic"
+    }
+    
+    # Créer le fichier de service systemd
+    echo "🔧 Création du service systemd..."
+    if [ ! -f "rockyconverter.service" ]; then
+        cat > rockyconverter.service << EOF
+[Unit]
+Description=Rocky Converter Web Django App
+After=network.target
+
+[Service]
+Type=exec
+User=$USER
+Group=$USER
+WorkingDirectory=$(pwd)
+Environment=PATH=$(pwd)/venv/bin
+ExecStart=$(pwd)/venv/bin/gunicorn --config gunicorn.conf.py RockyConverterWeb.wsgi:application
+ExecReload=/bin/kill -s HUP \$MAINPID
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        echo "✅ Fichier de service systemd créé"
+        echo "   Pour l'installer : sudo cp rockyconverter.service /etc/systemd/system/"
+        echo "   Pour l'activer : sudo systemctl enable rockyconverter"
+        echo "   Pour le démarrer : sudo systemctl start rockyconverter"
+    else
+        echo "✅ Fichier de service systemd existant trouvé"
+    fi
+    
+    echo "✅ Configuration de production terminée"
+    echo ""
+fi
+
 # Rendre le script de nettoyage exécutable
 chmod +x cleanup_cron.sh
 echo "✅ Script de nettoyage configuré"
@@ -207,16 +310,81 @@ echo ""
 
 if [[ "$ENVIRONMENT" == "prod" ]]; then
     echo "🚀 Prochaines étapes pour la PRODUCTION :"
-    echo "1. Vérifier la configuration de la base de données dans .env (SQLite par défaut)"
-    echo "2. Éditer le fichier .env avec vos paramètres de production"
-    echo "3. Collecter les fichiers statiques :"
-    echo "   python manage.py collectstatic"
-    echo "4. Créer un superutilisateur :"
+    echo ""
+    echo "1️⃣ Configurer les paramètres de production :"
+    echo "   • Éditer le fichier .env avec vos paramètres"
+    echo "   • Configurer ALLOWED_HOSTS avec votre domaine"
+    echo "   • Configurer STATIC_ROOT et MEDIA_ROOT si nécessaire"
+    echo ""
+    echo "2️⃣ Créer un superutilisateur :"
     echo "   python manage.py createsuperuser"
-    echo "5. Configurer votre serveur web (Nginx + Gunicorn)"
-    echo "6. Configurer le cron job :"
+    echo ""
+    echo "3️⃣ Installer et démarrer le service systemd :"
+    echo "   sudo cp rockyconverter.service /etc/systemd/system/"
+    echo "   sudo systemctl daemon-reload"
+    echo "   sudo systemctl enable rockyconverter"
+    echo "   sudo systemctl start rockyconverter"
+    echo "   sudo systemctl status rockyconverter"
+    echo ""
+    echo "4️⃣ Installer et configurer Nginx :"
+    echo "   sudo apt install nginx"
+    echo "   # Utiliser le fichier de configuration fourni :"
+    echo "   sudo cp nginx.conf.example /etc/nginx/sites-available/rockyconverter"
+    echo "   # Éditer et personnaliser :"
+    echo "   sudo nano /etc/nginx/sites-available/rockyconverter"
+    echo "   # (Remplacer votre-domaine.com et /path/to/RockyConverterWeb)"
+    echo ""
+    echo "📝 Configuration Nginx recommandée :"
+    echo "-------------------------------------"
+    echo "server {"
+    echo "    listen 80;"
+    echo "    server_name votre-domaine.com www.votre-domaine.com;"
+    echo ""
+    echo "    # Fichiers statiques"
+    echo "    location /static/ {"
+    echo "        alias $(pwd)/static/;"
+    echo "        expires 30d;"
+    echo "        add_header Cache-Control \"public, immutable\";"
+    echo "    }"
+    echo ""
+    echo "    # Fichiers média (uploads)"
+    echo "    location /media/ {"
+    echo "        alias $(pwd)/media/;"
+    echo "        expires 30d;"
+    echo "    }"
+    echo ""
+    echo "    # Proxy vers Gunicorn"
+    echo "    location / {"
+    echo "        proxy_pass http://127.0.0.1:8000;"
+    echo "        proxy_set_header Host \$host;"
+    echo "        proxy_set_header X-Real-IP \$remote_addr;"
+    echo "        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;"
+    echo "        proxy_set_header X-Forwarded-Proto \$scheme;"
+    echo "        proxy_connect_timeout 300;"
+    echo "        proxy_send_timeout 300;"
+    echo "        proxy_read_timeout 300;"
+    echo "        client_max_body_size 5G;"
+    echo "    }"
+    echo "}"
+    echo "-------------------------------------"
+    echo ""
+    echo "5️⃣ Activer le site Nginx :"
+    echo "   sudo ln -s /etc/nginx/sites-available/rockyconverter /etc/nginx/sites-enabled/"
+    echo "   sudo nginx -t"
+    echo "   sudo systemctl restart nginx"
+    echo ""
+    echo "6️⃣ Configurer le cron job de nettoyage :"
     echo "   crontab -e"
     echo "   Ajouter: 0 2 * * * $(pwd)/cleanup_cron.sh"
+    echo ""
+    echo "7️⃣ Configurer HTTPS avec Let's Encrypt (optionnel) :"
+    echo "   sudo apt install certbot python3-certbot-nginx"
+    echo "   sudo certbot --nginx -d votre-domaine.com -d www.votre-domaine.com"
+    echo ""
+    echo "🔥 Services utiles :"
+    echo "   • Voir les logs : sudo journalctl -u rockyconverter -f"
+    echo "   • Redémarrer l'app : sudo systemctl restart rockyconverter"
+    echo "   • Voir le statut : sudo systemctl status rockyconverter"
     echo ""
     echo "💡 Pour une base de données plus robuste, modifiez DATABASE_URL dans .env"
     echo "📖 Consultez le README.md section 'Configuration de production'"

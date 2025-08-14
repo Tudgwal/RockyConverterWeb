@@ -1,0 +1,113 @@
+# Configuration Nginx pour Rocky Converter Web
+# Copiez ce fichier vers /etc/nginx/sites-available/rockyconverter
+# Puis activez-le avec : sudo ln -s /etc/nginx/sites-available/rockyconverter /etc/nginx/sites-enabled/
+
+server {
+    listen 80;
+    server_name votre-domaine.com www.votre-domaine.com;
+    
+    # Remplacez par le chemin réel de votre installation
+    set $project_root /path/to/RockyConverterWeb;
+    
+    # Logs
+    access_log /var/log/nginx/rockyconverter_access.log;
+    error_log /var/log/nginx/rockyconverter_error.log;
+    
+    # Sécurité
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    
+    # Taille maximale des uploads (5GB pour les albums photo)
+    client_max_body_size 5G;
+    client_body_timeout 300;
+    client_header_timeout 300;
+    
+    # Fichiers statiques (CSS, JS, images statiques)
+    location /static/ {
+        alias $project_root/static/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        
+        # Compression
+        gzip on;
+        gzip_types text/css application/javascript text/javascript application/json;
+    }
+    
+    # Fichiers média (uploads utilisateur)
+    location /media/ {
+        alias $project_root/media/;
+        expires 30d;
+        add_header Cache-Control "public";
+        
+        # Sécurité : empêcher l'exécution de scripts
+        location ~* \.(php|py|pl|sh|cgi)$ {
+            deny all;
+        }
+    }
+    
+    # Bloquer l'accès aux fichiers sensibles
+    location ~ /\.(env|git|svn) {
+        deny all;
+    }
+    
+    location ~ /(requirements|install|uninstall|cleanup).*\.(txt|sh|py)$ {
+        deny all;
+    }
+    
+    # Proxy vers Gunicorn
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Timeouts pour les gros uploads
+        proxy_connect_timeout 300;
+        proxy_send_timeout 300;
+        proxy_read_timeout 300;
+        
+        # Buffering pour les gros fichiers
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
+    
+    # Optimisation : servir favicon et robots.txt directement
+    location = /favicon.ico {
+        alias $project_root/static/favicon.ico;
+        expires 30d;
+        access_log off;
+    }
+    
+    location = /robots.txt {
+        alias $project_root/static/robots.txt;
+        expires 30d;
+        access_log off;
+    }
+}
+
+# Configuration HTTPS (activée automatiquement par Certbot)
+# Décommentez après avoir configuré SSL avec Let's Encrypt
+#
+# server {
+#     listen 443 ssl http2;
+#     server_name votre-domaine.com www.votre-domaine.com;
+#     
+#     # Certificats SSL (gérés par Certbot)
+#     ssl_certificate /etc/letsencrypt/live/votre-domaine.com/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/votre-domaine.com/privkey.pem;
+#     
+#     # Configuration SSL moderne
+#     ssl_protocols TLSv1.2 TLSv1.3;
+#     ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;
+#     ssl_prefer_server_ciphers off;
+#     ssl_session_cache shared:SSL:10m;
+#     ssl_session_timeout 10m;
+#     
+#     # HSTS
+#     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+#     
+#     # [Répéter ici toute la configuration du bloc server HTTP ci-dessus]
+# }
