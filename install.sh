@@ -127,7 +127,7 @@ if [[ "$CREATE_ENV_FILE" == true ]]; then
 DEBUG=False
 SECRET_KEY=$SECRET_KEY
 ALLOWED_HOSTS=localhost,127.0.0.1,votre-domaine.com
-DATABASE_URL=postgresql://user:password@localhost:5432/rockyconverter
+DATABASE_URL=sqlite:///db.sqlite3
 CLEANUP_DAYS=14
 CLEANUP_LOG_PATH=/var/log/rocky_converter_cleanup.log
 EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
@@ -207,7 +207,7 @@ echo ""
 
 if [[ "$ENVIRONMENT" == "prod" ]]; then
     echo "🚀 Prochaines étapes pour la PRODUCTION :"
-    echo "1. Configurer la base de données (PostgreSQL recommandé)"
+    echo "1. Vérifier la configuration de la base de données dans .env (SQLite par défaut)"
     echo "2. Éditer le fichier .env avec vos paramètres de production"
     echo "3. Collecter les fichiers statiques :"
     echo "   python manage.py collectstatic"
@@ -218,6 +218,7 @@ if [[ "$ENVIRONMENT" == "prod" ]]; then
     echo "   crontab -e"
     echo "   Ajouter: 0 2 * * * $(pwd)/cleanup_cron.sh"
     echo ""
+    echo "💡 Pour une base de données plus robuste, modifiez DATABASE_URL dans .env"
     echo "📖 Consultez le README.md section 'Configuration de production'"
 else
     echo "🔧 Prochaines étapes pour le DÉVELOPPEMENT :"

@@ -62,9 +62,11 @@ Le projet inclut un script d'installation automatique qui gère le développemen
 
 ### Options du script d'installation :
 - `-e dev` : Installation pour développement (SQLite, DEBUG=True)
-- `-e prod` : Installation pour production (PostgreSQL, DEBUG=False, sécurité activée)
+- `-e prod` : Installation pour production (SQLite, DEBUG=False, sécurité activée)
 - `--no-env-file` : Ne pas créer automatiquement le fichier .env
 - `--help` : Afficher l'aide
+
+**Note** : SQLite est utilisé par défaut dans les deux modes. Vous pouvez modifier `DATABASE_URL` dans le fichier `.env` pour utiliser PostgreSQL ou MySQL si besoin.
 
 ## �📦 Installation manuelle
 
@@ -174,8 +176,17 @@ Exemple de configuration de production :
 DEBUG=False
 SECRET_KEY=votre-clé-secrète-très-longue-générée
 ALLOWED_HOSTS=votre-domaine.com,www.votre-domaine.com
-DATABASE_URL=postgresql://user:password@localhost:5432/rockyconverter
+DATABASE_URL=sqlite:///db.sqlite3
 CLEANUP_DAYS=14
+```
+
+**Pour une base de données plus robuste en production, vous pouvez utiliser :**
+```bash
+# PostgreSQL
+DATABASE_URL=postgresql://user:password@localhost:5432/rockyconverter
+
+# MySQL
+DATABASE_URL=mysql://user:password@localhost:3306/rockyconverter
 ```
 
 ### 2. Serveur web (exemple avec Nginx + Gunicorn)
