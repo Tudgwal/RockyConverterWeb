@@ -1,0 +1,20 @@
+# Configuration Cron pour Rocky Converter Web
+# 
+# Pour installer ce cron job :
+# 1. Copier ce fichier : cp crontab.example /tmp/rocky_cron
+# 2. Modifier les chemins dans le fichier si nécessaire
+# 3. Installer : crontab /tmp/rocky_cron
+# 4. Vérifier : crontab -l
+
+# Nettoyage automatique des albums anciens (tous les jours à 02:00)
+# Supprime les albums de plus de 14 jours
+0 2 * * * ~/delivery/RockyConverterWeb/cleanup_cron.sh
+
+# Alternative : nettoyage hebdomadaire (dimanche à 03:00)
+# 0 3 * * 0 ~/delivery/RockyConverterWeb/cleanup_cron.sh
+
+# Alternative : nettoyage avec période personnalisée
+# Modifier DAYS_TO_KEEP dans cleanup_cron.sh pour changer la durée de rétention
+
+# Exemple de rotation des logs (optionnel, une fois par mois)
+# 0 4 1 * * find ~/ -name "rocky_converter_cleanup.log" -exec mv {} {}.$(date +\%Y\%m\%d) \; && touch ~/rocky_converter_cleanup.log

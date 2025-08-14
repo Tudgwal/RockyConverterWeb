@@ -1,0 +1,22 @@
+# Requirements for production deployment
+# Install with: pip install -r requirements-production.txt
+
+# Base requirements
+-r requirements.txt
+
+# Production server
+gunicorn==21.2.0
+
+# PostgreSQL support (most common for production)
+psycopg2-binary==2.9.7
+
+# Optional: MySQL support (uncomment if using MySQL)
+# mysqlclient==2.2.0
+
+# Security and monitoring (optional)
+# django-security==0.17.0
+# sentry-sdk[django]==1.32.0
+
+# Performance optimization (optional)
+# redis==5.0.0
+# django-redis==5.4.0

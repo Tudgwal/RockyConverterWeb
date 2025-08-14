@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rocky Converter - Albums</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .header {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-info {
+            color: #333;
+        }
+
+        .logout-btn {
+            background-color: #dc3545;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-left: 10px;
+        }
+
+        .logout-btn:hover {
+            background-color: #c82333;
+        }
+
+        .upload-btn {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .upload-btn:hover {
+            background-color: #218838;
+        }
+
+        .header-buttons {
+            display: flex;
+            align-items: center;
+        }
+
+        .alert {
+            padding: 12px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+        }
+
+        .alert-success {
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+
+        .alert-error {
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+
+        .alert-info {
+            color: #0c5460;
+            background-color: #d1ecf1;
+            border-color: #bee5eb;
+        }
+
+        .status-converted {
+            color: #155724;
+            font-weight: bold;
+        }
+
+        .status-pending {
+            color: #856404;
+            font-weight: bold;
+        }
+
+        .status-converting {
+            color: #fd7e14;
+            font-weight: bold;
+        }
+
+        .status-error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        .conversion-date {
+            display: block;
+            color: #666;
+            font-size: 12px;
+            margin-top: 2px;
+        }
+
+        .content {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 18px;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 12px;
+            border: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #f4f4f4;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        button {
+            padding: 8px 12px;
+            margin: 0 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .btn-convert {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .btn-download {
+            background-color: #2196F3;
+            color: white;
+        }
+
+        .btn-delete {
+            background-color: #f44336;
+            color: white;
+        }
+
+        .btn-disabled {
+            background-color: #ccc;
+            color: #666;
+            padding: 8px 12px;
+            margin: 0 5px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        /* Barre de progression pour la conversion */
+        .progress-container {
+            background-color: #f3f3f3;
+            border-radius: 25px;
+            padding: 3px;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, .2);
+            width: 200px;
+            height: 30px;
+        }
+
+        .progress-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            text-align: center;
+            background: linear-gradient(90deg, #007bff 0%, #0056b3 100%);
+            border-radius: 25px;
+            height: 24px;
+            width: 0%;
+            transition: width 0.6s ease;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .progress-status {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="user-info">
+            <h1>Rocky Converter</h1>
+            <p>Bienvenue, {{ user.first_name }} {{ user.last_name }} ({{ user.username }})</p>
+        </div>
+        <div class="header-buttons">
+            <a href="{% url 'upload' %}" class="upload-btn">📤 Nouvel Album</a>
+            <a href="{% url 'logout' %}" class="logout-btn">Déconnexion</a>
+        </div>
+    </div>
+
+    <div class="content">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+
+        {% if latest_album_list %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nom de l'album</th>
+                        <th>Nombre de fichiers</th>
+                        <th>Date de création</th>
+                        <th>Statut</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for album in latest_album_list %}
+                    <tr>
+                        <td>{{ album.name }}</td>
+                        <td>{{ album.file_count }} fichier{{ album.file_count|pluralize }}</td>
+                        <td>{{ album.date|date:"d/m/Y H:i" }}</td>
+                        <td>
+                            {% if album.conversion_status == 'completed' %}
+                                <span class="status-converted">✅ Converti</span>
+                                {% if album.conversion_date %}
+                                    <small class="conversion-date">{{ album.conversion_date|date:"d/m/Y H:i" }}</small>
+                                {% endif %}
+                            {% elif album.conversion_status == 'converting' %}
+                                <span class="status-converting">🔄 En cours de conversion</span>
+                            {% elif album.conversion_status == 'error' %}
+                                <span class="status-error">❌ Erreur de conversion</span>
+                            {% else %}
+                                <span class="status-pending">⏳ En attente</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if album.conversion_status == 'pending' %}
+                                <button onclick="convertAlbum('{{ album.id }}')" class="btn-convert">🔄 Convertir</button>
+                            {% elif album.conversion_status == 'converting' %}
+                                <span class="btn-disabled">🔄 Conversion en cours...</span>
+                            {% elif album.conversion_status == 'completed' %}
+                                <span class="btn-disabled">✅ Converti</span>
+                                <button onclick="downloadAlbum('{{ album.id }}')" class="btn-download">📥 Télécharger</button>
+                            {% elif album.conversion_status == 'error' %}
+                                <button onclick="convertAlbum('{{ album.id }}')" class="btn-convert">🔄 Réessayer</button>
+                            {% endif %}
+                            <button onclick="deleteAlbum('{{ album.id }}')" class="btn-delete">🗑️ Supprimer</button>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>Aucuns album.</p>
+        {% endif %}
+    </div>
+
+    <script>
+        function convertAlbum(albumId) {
+            // Afficher un indicateur de progression
+            const button = event.target;
+            const originalText = button.textContent;
+            button.textContent = '⏳ Conversion en cours...';
+            button.disabled = true;
+            
+            // Créer un formulaire pour envoyer la requête de conversion
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '{% url "convert" %}';
+            
+            // Ajouter le token CSRF
+            const csrfToken = document.createElement('input');
+            csrfToken.type = 'hidden';
+            csrfToken.name = 'csrfmiddlewaretoken';
+            csrfToken.value = '{{ csrf_token }}';
+            form.appendChild(csrfToken);
+            
+            // Ajouter l'ID de l'album
+            const albumInput = document.createElement('input');
+            albumInput.type = 'hidden';
+            albumInput.name = 'album_id';
+            albumInput.value = albumId;
+            form.appendChild(albumInput);
+            
+            // Ajouter au DOM et soumettre
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        function downloadAlbum(albumId) {
+            // Afficher un message de préparation
+            const originalText = event.target.textContent;
+            event.target.textContent = '⏳ Préparation...';
+            event.target.disabled = true;
+            
+            // Téléchargement direct via l'URL
+            window.location.href = `/download/${albumId}/`;
+            
+            // Restaurer le bouton après un délai
+            setTimeout(() => {
+                event.target.textContent = originalText;
+                event.target.disabled = false;
+            }, 3000);
+        }
+
+        function deleteAlbum(albumId) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer cet album ? Cette action est irréversible.')) {
+                // Créer un formulaire pour envoyer la requête de suppression
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '{% url "delete" %}';
+                
+                // Ajouter le token CSRF
+                const csrfToken = document.createElement('input');
+                csrfToken.type = 'hidden';
+                csrfToken.name = 'csrfmiddlewaretoken';
+                csrfToken.value = '{{ csrf_token }}';
+                form.appendChild(csrfToken);
+                
+                // Ajouter l'ID de l'album
+                const albumInput = document.createElement('input');
+                albumInput.type = 'hidden';
+                albumInput.name = 'album_id';
+                albumInput.value = albumId;
+                form.appendChild(albumInput);
+                
+                // Ajouter au DOM et soumettre
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+    </script>
+</body>
+</html>

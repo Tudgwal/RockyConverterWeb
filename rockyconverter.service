@@ -1,0 +1,45 @@
+# Service systemd pour Rocky Converter Web
+# Fichier: /etc/systemd/system/rockyconverter.service
+#
+# Installation:
+# 1. Copier ce fichier vers /etc/systemd/system/rockyconverter.service
+# 2. Modifier les chemins selon votre installation
+# 3. sudo systemctl daemon-reload
+# 4. sudo systemctl enable rockyconverter
+# 5. sudo systemctl start rockyconverter
+
+[Unit]
+Description=Rocky Converter Web
+After=network.target
+
+[Service]
+Type=notify
+# Utilisateur qui exécute l'application
+User=www-data
+Group=www-data
+
+# Répertoire de travail (modifier selon votre installation)
+WorkingDirectory=/var/www/RockyConverterWeb
+
+# Chemin vers l'environnement virtuel (modifier selon votre installation)
+Environment=PATH=/var/www/RockyConverterWeb/venv/bin
+Environment=DJANGO_SETTINGS_MODULE=RockyConverterWeb.settings
+
+# Commande de démarrage
+ExecStart=/var/www/RockyConverterWeb/venv/bin/gunicorn \
+    --config /var/www/RockyConverterWeb/gunicorn.conf.py \
+    RockyConverterWeb.wsgi:application
+
+# Redémarrage automatique en cas de crash
+Restart=always
+RestartSec=3
+
+# Sécurité (optionnel)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/www/RockyConverterWeb/media
+ReadWritePaths=/var/log/rockyconverter
+
+[Install]
+WantedBy=multi-user.target
