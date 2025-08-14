@@ -111,17 +111,6 @@ pip install --upgrade pip
 pip install -r "$INSTALL_REQUIREMENTS"
 echo "✅ Dépendances installées"
 
-# Appliquer les migrations
-echo "🗄️ Configuration de la base de données..."
-python manage.py migrate
-echo "✅ Base de données configurée"
-
-# Créer le dossier media
-echo "📁 Configuration des dossiers..."
-mkdir -p media/albums
-chmod 755 media/albums
-echo "✅ Dossiers configurés"
-
 # Créer le fichier .env si il n'existe pas
 if [[ "$CREATE_ENV_FILE" == true ]]; then
     if [ ! -f ".env" ]; then
@@ -182,6 +171,17 @@ EOF
 else
     echo "⏭️  Création du fichier .env ignorée (--no-env-file)"
 fi
+
+# Appliquer les migrations
+echo "🗄️ Configuration de la base de données..."
+python manage.py migrate
+echo "✅ Base de données configurée"
+
+# Créer le dossier media
+echo "📁 Configuration des dossiers..."
+mkdir -p media/albums
+chmod 755 media/albums
+echo "✅ Dossiers configurés"
 
 # Rendre le script de nettoyage exécutable
 chmod +x cleanup_cron.sh

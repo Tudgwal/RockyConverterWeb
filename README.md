@@ -110,25 +110,28 @@ pip install -r requirements.txt
 pip install -r requirements-production.txt
 ```
 
-2. **Configuration de la base de données**
+2. **Configuration de l'environnement**
 
 ```bash
-# Appliquer les migrations
-python manage.py migrate
-
-# Le script d'installation crée automatiquement un fichier .env
-# Si vous l'installez manuellement, copiez le template :
+# Copier le template
 cp .env.example .env
 
 # Générer une nouvelle clé secrète
 python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
 # Copier la clé générée dans le fichier .env
+```
+
+3. **Configuration de la base de données**
+
+```bash
+# Appliquer les migrations
+python manage.py migrate
 
 # Créer un superutilisateur
 python manage.py createsuperuser
 ```
 
-3. **Configuration des médias**
+4. **Configuration des médias**
 
 ```bash
 # Créer le dossier media
@@ -136,7 +139,7 @@ mkdir -p media/albums
 chmod 755 media/albums
 ```
 
-4. **Tester l'installation**
+5. **Tester l'installation**
 
 ```bash
 # Vérifier les dépendances
