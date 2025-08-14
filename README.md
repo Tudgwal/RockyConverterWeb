@@ -206,7 +206,106 @@ server {
 }
 ```
 
-## 🕐 Configuration du Cron Job (Nettoyage automatique)
+## �️ Désinstallation
+
+Le projet inclut un script de désinstallation automatique qui nettoie proprement tous les composants installés.
+
+### Script de désinstallation rapide
+
+```bash
+# Désinstallation interactive (avec confirmation)
+./uninstall.sh
+
+# Désinstallation forcée (sans confirmation)
+./uninstall.sh --force
+
+# Garder les données utilisateur (base de données et médias)
+./uninstall.sh --keep-data
+
+# Ne pas supprimer l'environnement virtuel
+./uninstall.sh --no-venv
+
+# Voir toutes les options
+./uninstall.sh --help
+```
+
+### Options du script de désinstallation
+
+- `-f, --force` : Désinstallation sans confirmation
+- `-k, --keep-data` : Conserver les données utilisateur (base de données, médias)
+- `--no-venv` : Ne pas supprimer l'environnement virtuel Python
+- `-h, --help` : Afficher l'aide complète
+
+### Ce qui est supprimé
+
+Le script de désinstallation supprime automatiquement :
+
+**Services et processus** :
+- Service systemd `rockyconverter` (si configuré)
+- Processus Django en cours d'exécution
+- Processus Gunicorn
+
+**Fichiers système** :
+- Service systemd (`/etc/systemd/system/rockyconverter.service`)
+- Logs système (`/var/log/rocky_converter*.log`)
+
+**Données et configuration** :
+- Base de données (`db.sqlite3`)
+- Fichier de configuration (`.env`)
+- Cache Python (`__pycache__/`, `*.pyc`)
+- Logs locaux (`logs/`, `*.log`)
+- Fichiers média (`media/albums/*`)
+
+**Tâches programmées** :
+- Tâches cron pour le nettoyage automatique
+
+**Environnement de développement** :
+- Environnement virtuel Python (`venv/`)
+- Fichiers temporaires
+
+### Sauvegarde automatique
+
+Avant la désinstallation, le script crée automatiquement une sauvegarde dans :
+```
+~/rocky_converter_backup_YYYYMMDD_HHMMSS/
+```
+
+La sauvegarde contient :
+- Configuration (`.env`)
+- Base de données (`db.sqlite3`)
+- Médias (si < 100MB)
+
+### Désinstallation manuelle
+
+Si vous préférez désinstaller manuellement :
+
+```bash
+# 1. Arrêter les services
+sudo systemctl stop rockyconverter
+sudo systemctl disable rockyconverter
+
+# 2. Supprimer les tâches cron
+crontab -e
+# Supprimer les lignes contenant cleanup_cron.sh
+
+# 3. Supprimer les fichiers système
+sudo rm -f /etc/systemd/system/rockyconverter.service
+sudo rm -f /var/log/rocky_converter*.log
+sudo systemctl daemon-reload
+
+# 4. Supprimer les données (optionnel)
+rm -f db.sqlite3 .env
+rm -rf media/albums/* logs/ __pycache__/
+
+# 5. Supprimer l'environnement virtuel
+rm -rf venv/
+
+# 6. Supprimer le dossier du projet
+cd ..
+rm -rf RockyConverterWeb/
+```
+
+## �🕐 Configuration du Cron Job (Nettoyage automatique)
 
 ### 1. Script de nettoyage
 
