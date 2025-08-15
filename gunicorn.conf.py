@@ -28,9 +28,9 @@ proc_name = "rockyconverter"
 
 # Server mechanics
 daemon = False
-pidfile = "/var/run/rockyconverter.pid"
-user = "www-data"
-group = "www-data"
+pidfile = None
+user = None
+group = None
 tmp_upload_dir = None
 
 # SSL (if using HTTPS directly with Gunicorn)
