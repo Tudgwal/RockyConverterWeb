@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.template import loader
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -101,9 +101,10 @@ def save_uploaded_files(album_name, photos=None, compressed_file=None):
     
     return file_count
 
-def resize_images_with_pillow(input_dir, output_dir):
+def resize_images_with_pillow(input_dir, output_dir, album=None):
     """
     Redimensionne toutes les images d'un dossier à 1920x1080 en utilisant Pillow
+    Met à jour la progression si un album est fourni
     """
     # Extensions d'images supportées par Pillow
     image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.tiff', '*.bmp', '*.webp', 
@@ -160,14 +161,31 @@ def resize_images_with_pillow(input_dir, output_dir):
                 
             converted_count += 1
             
-            # Calculer le progrès
+            # Calculer le progrès et mettre à jour l'album si fourni
             progress = ((i + 1) * 100) // total_files
+            
+            if album:
+                # Mettre à jour la progression dans la base de données
+                album.conversion_progress = progress
+                album.current_file_index = i + 1
+                album.current_file_name = output_filename
+                album.save(update_fields=['conversion_progress', 'current_file_index', 'current_file_name'])
+            
             logger.info(f"Progression: {progress}% ({i + 1}/{total_files}) - {output_filename}")
             
         except Exception as e:
             error_msg = f"Erreur lors de la conversion de {image_file}: {str(e)}"
             logger.error(error_msg)
             errors.append(error_msg)
+            
+            # Mettre à jour la progression même en cas d'erreur
+            if album:
+                progress = ((i + 1) * 100) // total_files
+                album.conversion_progress = progress
+                album.current_file_index = i + 1
+                album.current_file_name = f"Erreur: {os.path.basename(image_file)}"
+                album.save(update_fields=['conversion_progress', 'current_file_index', 'current_file_name'])
+            
             continue
     
     if errors:
@@ -328,70 +346,130 @@ def convert(request):
             album_id = request.POST.get('album_id')
             album = Album.objects.get(id=album_id)
             
-            # Mettre le statut à "en cours de conversion"
-            album.conversion_status = 'converting'
-            album.save()
-            
             # Vérifier que le dossier source existe
             source_dir = album.old_path
             if not os.path.exists(source_dir):
                 album.conversion_status = 'error'
                 album.save()
-                messages.error(request, f'Le dossier source n\'existe pas: {source_dir}')
+                error_msg = f'Le dossier source n\'existe pas: {source_dir}'
+                
+                # Retourner JSON pour les requêtes AJAX
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.content_type == 'application/json':
+                    return JsonResponse({'success': False, 'error': error_msg}, status=400)
+                
+                messages.error(request, error_msg)
                 return redirect('index')
             
-            # Créer le nom du dossier de sortie (avec suffixe _resized)
-            base_dir = os.path.dirname(source_dir)
-            dir_name = os.path.basename(source_dir)
-            output_dir = os.path.join(base_dir, f"{dir_name}_resized")
+            # Mettre le statut à "en cours de conversion" et réinitialiser la progression
+            album.conversion_status = 'converting'
+            album.conversion_progress = 0
+            album.current_file_index = 0
+            album.current_file_name = ''
+            album.save()
             
-            # Effectuer la conversion avec Pillow
-            messages.info(request, f'Début de la conversion de l\'album "{album.name}"...')
-            
-            converted_count, total_files = resize_images_with_pillow(source_dir, output_dir)
-            
-            if converted_count > 0:
-                # Supprimer l'ancien dossier et renommer le nouveau
-                if os.path.exists(source_dir):
-                    shutil.rmtree(source_dir)
-                os.rename(output_dir, source_dir)
+            # Pour les requêtes AJAX, démarrer la conversion en arrière-plan
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'fetch' in request.META.get('HTTP_SEC_FETCH_MODE', ''):
+                # Importer threading pour exécuter en arrière-plan
+                import threading
                 
-                # Mettre à jour la base de données
-                album.conversion_status = 'completed'
-                album.conversion_date = timezone.now()
-                album.save()
+                def background_conversion():
+                    try:
+                        # Créer le nom du dossier de sortie (avec suffixe _resized)
+                        base_dir = os.path.dirname(source_dir)
+                        dir_name = os.path.basename(source_dir)
+                        output_dir = os.path.join(base_dir, f"{dir_name}_resized")
+                        
+                        # Effectuer la conversion avec Pillow
+                        converted_count, total_files = resize_images_with_pillow(source_dir, output_dir, album)
+                        
+                        if converted_count > 0:
+                            # Supprimer l'ancien dossier et renommer le nouveau
+                            if os.path.exists(source_dir):
+                                shutil.rmtree(source_dir)
+                            os.rename(output_dir, source_dir)
+                            
+                            # Mettre à jour la base de données
+                            album.conversion_status = 'completed'
+                            album.conversion_date = timezone.now()
+                            album.conversion_progress = 100
+                            album.save()
+                        else:
+                            album.conversion_status = 'error'
+                            album.save()
+                            # Nettoyer le dossier de sortie s'il est vide
+                            if os.path.exists(output_dir) and not os.listdir(output_dir):
+                                os.rmdir(output_dir)
+                    except Exception as e:
+                        # En cas d'erreur, mettre le statut à "error"
+                        album.conversion_status = 'error'
+                        album.save()
+                        logger.error(f'Erreur lors de la conversion: {str(e)}')
+                        # En cas d'erreur, nettoyer le dossier de sortie s'il existe
+                        if 'output_dir' in locals() and os.path.exists(output_dir):
+                            try:
+                                shutil.rmtree(output_dir)
+                            except:
+                                pass
                 
-                messages.success(request, 
-                    f'Album "{album.name}" converti avec succès ! '
-                    f'{converted_count}/{total_files} images redimensionnées à 1920x1080.'
-                )
+                # Démarrer la conversion en arrière-plan
+                thread = threading.Thread(target=background_conversion)
+                thread.daemon = True
+                thread.start()
+                
+                return JsonResponse({
+                    'success': True, 
+                    'message': f'Conversion de l\'album "{album.name}" démarrée',
+                    'album_id': album.id
+                })
+            
+            # Pour les requêtes classiques (form submit), traitement synchrone
             else:
-                album.conversion_status = 'error'
-                album.save()
-                messages.error(request, 'Aucune image n\'a pu être convertie.')
-                # Nettoyer le dossier de sortie s'il est vide
-                if os.path.exists(output_dir) and not os.listdir(output_dir):
-                    os.rmdir(output_dir)
-            
-            return redirect('index')
+                # Créer le nom du dossier de sortie (avec suffixe _resized)
+                base_dir = os.path.dirname(source_dir)
+                dir_name = os.path.basename(source_dir)
+                output_dir = os.path.join(base_dir, f"{dir_name}_resized")
+                
+                # Effectuer la conversion avec Pillow
+                messages.info(request, f'Début de la conversion de l\'album "{album.name}"...')
+                
+                converted_count, total_files = resize_images_with_pillow(source_dir, output_dir, album)
+                
+                if converted_count > 0:
+                    # Supprimer l'ancien dossier et renommer le nouveau
+                    if os.path.exists(source_dir):
+                        shutil.rmtree(source_dir)
+                    os.rename(output_dir, source_dir)
+                    
+                    # Mettre à jour la base de données
+                    album.conversion_status = 'completed'
+                    album.conversion_date = timezone.now()
+                    album.save()
+                    
+                    messages.success(request, 
+                        f'Album "{album.name}" converti avec succès ! '
+                        f'{converted_count}/{total_files} images redimensionnées à 1920x1080.'
+                    )
+                else:
+                    album.conversion_status = 'error'
+                    album.save()
+                    messages.error(request, 'Aucune image n\'a pu être convertie.')
+                    # Nettoyer le dossier de sortie s'il est vide
+                    if os.path.exists(output_dir) and not os.listdir(output_dir):
+                        os.rmdir(output_dir)
+                
+                return redirect('index')
             
         except Album.DoesNotExist:
-            messages.error(request, 'Album non trouvé.')
+            error_msg = 'Album non trouvé.'
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'fetch' in request.META.get('HTTP_SEC_FETCH_MODE', ''):
+                return JsonResponse({'success': False, 'error': error_msg}, status=404)
+            messages.error(request, error_msg)
         except Exception as e:
-            # En cas d'erreur, mettre le statut à "error"
-            try:
-                album = Album.objects.get(id=album_id)
-                album.conversion_status = 'error'
-                album.save()
-            except:
-                pass
-            messages.error(request, f'Erreur lors de la conversion: {str(e)}')
-            # En cas d'erreur, nettoyer le dossier de sortie s'il existe
-            if 'output_dir' in locals() and os.path.exists(output_dir):
-                try:
-                    shutil.rmtree(output_dir)
-                except:
-                    pass
+            error_msg = f'Erreur lors de la conversion: {str(e)}'
+            logger.error(error_msg)
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'fetch' in request.META.get('HTTP_SEC_FETCH_MODE', ''):
+                return JsonResponse({'success': False, 'error': error_msg}, status=500)
+            messages.error(request, error_msg)
     
     return redirect('index')
 
@@ -409,3 +487,40 @@ def debug_settings(request):
     """
     
     return HttpResponse(debug_info)
+
+@approved_user_required
+def get_conversion_progress(request, album_id):
+    """Vue AJAX pour récupérer la progression de conversion d'un album"""
+    try:
+        album = Album.objects.get(id=album_id)
+        
+        data = {
+            'album_id': album.id,
+            'album_name': album.name,
+            'status': album.conversion_status,
+            'progress': album.conversion_progress,
+            'current_file_index': album.current_file_index,
+            'current_file_name': album.current_file_name,
+            'total_files': album.file_count,
+        }
+        
+        # Ajouter des informations supplémentaires selon le statut
+        if album.conversion_status == 'completed':
+            data['completion_date'] = album.conversion_date.strftime('%d/%m/%Y %H:%M:%S') if album.conversion_date else None
+            data['message'] = f'Conversion terminée ! {album.current_file_index}/{album.file_count} images traitées.'
+        elif album.conversion_status == 'converting':
+            data['message'] = f'Conversion en cours... {album.current_file_index}/{album.file_count} images'
+            if album.current_file_name:
+                data['current_message'] = f'Traitement de: {album.current_file_name}'
+        elif album.conversion_status == 'error':
+            data['message'] = 'Erreur lors de la conversion'
+            data['error'] = True
+        else:  # pending
+            data['message'] = 'En attente de conversion'
+        
+        return JsonResponse(data)
+        
+    except Album.DoesNotExist:
+        return JsonResponse({'error': 'Album non trouvé'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

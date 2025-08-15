@@ -11,5 +11,6 @@ urlpatterns = [
     path("convert/", converter.convert, name="convert"),
     path("delete/", converter.delete, name="delete"),
     path("download/<int:album_id>/", converter.download, name="download"),
+    path("progress/<int:album_id>/", converter.get_conversion_progress, name="conversion_progress"),
     path("debug/", converter.debug_settings, name="debug_settings"),
 ]

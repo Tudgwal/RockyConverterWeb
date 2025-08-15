@@ -178,12 +178,44 @@
             background-color: #ccc;
             color: #666;
             padding: 8px 12px;
-            margin: 0 5px;
             border-radius: 4px;
-            font-size: 14px;
         }
-
-        /* Barre de progression pour la conversion */
+        
+        /* Styles pour la barre de progression */
+        .progress-container {
+            width: 100%;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 5px 0;
+            height: 20px;
+            display: none;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background-color: #4CAF50;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .progress-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 2px;
+            display: none;
+        }
+        
+        .status-converting {
+            color: #ff9800;
+            font-weight: bold;
+        }        /* Barre de progression pour la conversion */
         .progress-container {
             background-color: #f3f3f3;
             border-radius: 25px;
@@ -259,7 +291,18 @@
                                     <small class="conversion-date">{{ album.conversion_date|date:"d/m/Y H:i" }}</small>
                                 {% endif %}
                             {% elif album.conversion_status == 'converting' %}
-                                <span class="status-converting">🔄 En cours de conversion</span>
+                                <div class="status-converting">🔄 En cours de conversion</div>
+                                <div class="progress-container" id="progress-container-{{ album.id }}" style="display: block;">
+                                    <div class="progress-bar" id="progress-bar-{{ album.id }}" style="width: {{ album.conversion_progress }}%;">
+                                        {{ album.conversion_progress }}%
+                                    </div>
+                                </div>
+                                <div class="progress-text" id="progress-text-{{ album.id }}" style="display: block;">
+                                    {{ album.current_file_index }}/{{ album.file_count }} images
+                                    {% if album.current_file_name %}
+                                        <br><small>{{ album.current_file_name }}</small>
+                                    {% endif %}
+                                </div>
                             {% elif album.conversion_status == 'error' %}
                                 <span class="status-error">❌ Erreur de conversion</span>
                             {% else %}
@@ -289,11 +332,14 @@
     </div>
 
     <script>
+        // Dictionnaire pour stocker les intervalles de polling
+        let progressIntervals = {};
+        
         function convertAlbum(albumId) {
             // Afficher un indicateur de progression
             const button = event.target;
             const originalText = button.textContent;
-            button.textContent = '⏳ Conversion en cours...';
+            button.textContent = '⏳ Lancement...';
             button.disabled = true;
             
             // Créer un formulaire pour envoyer la requête de conversion
@@ -318,7 +364,78 @@
             // Ajouter au DOM et soumettre
             document.body.appendChild(form);
             form.submit();
+            
+            // Forcer le rafraîchissement de la page après un court délai
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
         }
+        
+        function startProgressMonitoring(albumId) {
+            // Arrêter le monitoring existant s'il y en a un
+            if (progressIntervals[albumId]) {
+                clearInterval(progressIntervals[albumId]);
+            }
+            
+            // Démarrer le polling
+            progressIntervals[albumId] = setInterval(() => {
+                updateProgress(albumId);
+            }, 1000); // Vérifier toutes les secondes
+        }
+        
+        function updateProgress(albumId) {
+            fetch(`/progress/${albumId}/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Erreur:', data.error);
+                        return;
+                    }
+                    
+                    const progressContainer = document.getElementById(`progress-container-${albumId}`);
+                    const progressBar = document.getElementById(`progress-bar-${albumId}`);
+                    const progressText = document.getElementById(`progress-text-${albumId}`);
+                    
+                    if (data.status === 'converting') {
+                        // Afficher la barre de progression
+                        if (progressContainer) {
+                            progressContainer.style.display = 'block';
+                            progressBar.style.width = `${data.progress}%`;
+                            progressBar.textContent = `${data.progress}%`;
+                        }
+                        
+                        if (progressText) {
+                            progressText.style.display = 'block';
+                            let textContent = `${data.current_file_index}/${data.total_files} images`;
+                            if (data.current_file_name) {
+                                textContent += `<br><small>${data.current_file_name}</small>`;
+                            }
+                            progressText.innerHTML = textContent;
+                        }
+                    } else if (data.status === 'completed' || data.status === 'error') {
+                        // Arrêter le monitoring
+                        clearInterval(progressIntervals[albumId]);
+                        delete progressIntervals[albumId];
+                        
+                        // Recharger la page pour afficher le nouvel état
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    }
+                })
+                .catch(error => {
+                    console.error('Erreur lors de la récupération de la progression:', error);
+                });
+        }
+        
+        // Démarrer le monitoring pour les albums déjà en cours de conversion au chargement de la page
+        document.addEventListener('DOMContentLoaded', function() {
+            {% for album in latest_album_list %}
+                {% if album.conversion_status == 'converting' %}
+                    startProgressMonitoring('{{ album.id }}');
+                {% endif %}
+            {% endfor %}
+        });
 
         function downloadAlbum(albumId) {
             // Afficher un message de préparation

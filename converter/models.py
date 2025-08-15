@@ -16,6 +16,11 @@ class Album(models.Model):
     file_count = models.IntegerField(default=0)
     conversion_date = models.DateTimeField(null=True, blank=True)
     conversion_status = models.CharField(max_length=20, choices=CONVERSION_STATUS_CHOICES, default='pending')
+    
+    # Champs pour le suivi de progression
+    conversion_progress = models.IntegerField(default=0)  # Pourcentage de progression (0-100)
+    current_file_index = models.IntegerField(default=0)  # Index du fichier en cours
+    current_file_name = models.CharField(max_length=255, blank=True)  # Nom du fichier en cours
 
     def __str__(self):
         return self.name
