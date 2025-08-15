@@ -297,12 +297,6 @@
                                         {{ album.conversion_progress }}%
                                     </div>
                                 </div>
-                                <div class="progress-text" id="progress-text-{{ album.id }}" style="display: block;">
-                                    {{ album.current_file_index }}/{{ album.file_count }} images
-                                    {% if album.current_file_name %}
-                                        <br><small>{{ album.current_file_name }}</small>
-                                    {% endif %}
-                                </div>
                             {% elif album.conversion_status == 'error' %}
                                 <span class="status-error">❌ Erreur de conversion</span>
                             {% else %}
@@ -394,7 +388,6 @@
                     
                     const progressContainer = document.getElementById(`progress-container-${albumId}`);
                     const progressBar = document.getElementById(`progress-bar-${albumId}`);
-                    const progressText = document.getElementById(`progress-text-${albumId}`);
                     
                     if (data.status === 'converting') {
                         // Afficher la barre de progression
@@ -402,15 +395,6 @@
                             progressContainer.style.display = 'block';
                             progressBar.style.width = `${data.progress}%`;
                             progressBar.textContent = `${data.progress}%`;
-                        }
-                        
-                        if (progressText) {
-                            progressText.style.display = 'block';
-                            let textContent = `${data.current_file_index}/${data.total_files} images`;
-                            if (data.current_file_name) {
-                                textContent += `<br><small>${data.current_file_name}</small>`;
-                            }
-                            progressText.innerHTML = textContent;
                         }
                     } else if (data.status === 'completed' || data.status === 'error') {
                         // Arrêter le monitoring
