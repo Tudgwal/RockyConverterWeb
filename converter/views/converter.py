@@ -9,7 +9,6 @@ import os
 import zipfile
 import tarfile
 import shutil
-import subprocess
 import glob
 import tempfile
 from django.conf import settings
@@ -17,9 +16,14 @@ from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from django.http import HttpResponse, Http404
 from django.utils.encoding import smart_str
+from PIL import Image, ImageOps
+import logging
 
 from ..models import Album, UserProfile
 from ..forms import AlbumUploadForm
+
+# Configuration du logging
+logger = logging.getLogger(__name__)
 
 def is_image_file(filename):
     """Vérifie si le fichier est une image supportée"""
@@ -97,13 +101,13 @@ def save_uploaded_files(album_name, photos=None, compressed_file=None):
     
     return file_count
 
-def resize_images_with_imagemagick(input_dir, output_dir):
+def resize_images_with_pillow(input_dir, output_dir):
     """
-    Redimensionne toutes les images d'un dossier à 1920x1080 en utilisant ImageMagick
-    Basé sur le script rockyconverter.sh
+    Redimensionne toutes les images d'un dossier à 1920x1080 en utilisant Pillow
     """
-    # Extensions d'images supportées
-    image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.tiff', '*.JPG', '*.JPEG', '*.PNG', '*.TIFF']
+    # Extensions d'images supportées par Pillow
+    image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.tiff', '*.bmp', '*.webp', 
+                       '*.JPG', '*.JPEG', '*.PNG', '*.TIFF', '*.BMP', '*.WEBP']
     
     # Trouver tous les fichiers images dans le dossier
     image_files = []
@@ -120,35 +124,56 @@ def resize_images_with_imagemagick(input_dir, output_dir):
     
     total_files = len(image_files)
     converted_count = 0
+    errors = []
     
     for i, image_file in enumerate(image_files):
         try:
             # Nom du fichier de sortie
             output_filename = os.path.basename(image_file)
+            # Changer l'extension en .jpg pour optimiser l'espace
+            name_without_ext = os.path.splitext(output_filename)[0]
+            output_filename = f"{name_without_ext}.jpg"
             output_path = os.path.join(output_dir, output_filename)
             
-            # Commande ImageMagick pour redimensionner l'image
-            cmd = [
-                'convert',
-                image_file,
-                '-resize', '1920x1080',
-                output_path
-            ]
-            
-            # Exécuter la commande
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            # Ouvrir l'image avec Pillow
+            with Image.open(image_file) as img:
+                # Corriger l'orientation EXIF si nécessaire
+                img = ImageOps.exif_transpose(img)
+                
+                # Convertir en RGB si nécessaire (pour les images RGBA, CMYK, etc.)
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    # Créer un fond blanc pour les images transparentes
+                    background = Image.new('RGB', img.size, (255, 255, 255))
+                    if img.mode == 'P':
+                        img = img.convert('RGBA')
+                    background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+                    img = background
+                elif img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                # Redimensionner l'image en conservant les proportions
+                # Utilise LANCZOS pour une meilleure qualité
+                img.thumbnail((1920, 1080), Image.LANCZOS)
+                
+                # Sauvegarder l'image redimensionnée
+                img.save(output_path, 'JPEG', quality=90, optimize=True)
+                
             converted_count += 1
             
             # Calculer le progrès
             progress = ((i + 1) * 100) // total_files
-            print(f"Progression: {progress}% ({i + 1}/{total_files})")
+            logger.info(f"Progression: {progress}% ({i + 1}/{total_files}) - {output_filename}")
             
-        except subprocess.CalledProcessError as e:
-            print(f"Erreur lors de la conversion de {image_file}: {e}")
-            continue
         except Exception as e:
-            print(f"Erreur inattendue pour {image_file}: {e}")
+            error_msg = f"Erreur lors de la conversion de {image_file}: {str(e)}"
+            logger.error(error_msg)
+            errors.append(error_msg)
             continue
+    
+    if errors:
+        logger.warning(f"Conversion terminée avec {len(errors)} erreur(s)")
+        for error in errors[:5]:  # Afficher seulement les 5 premières erreurs
+            logger.warning(error)
     
     return converted_count, total_files
 
@@ -320,10 +345,10 @@ def convert(request):
             dir_name = os.path.basename(source_dir)
             output_dir = os.path.join(base_dir, f"{dir_name}_resized")
             
-            # Effectuer la conversion avec ImageMagick
+            # Effectuer la conversion avec Pillow
             messages.info(request, f'Début de la conversion de l\'album "{album.name}"...')
             
-            converted_count, total_files = resize_images_with_imagemagick(source_dir, output_dir)
+            converted_count, total_files = resize_images_with_pillow(source_dir, output_dir)
             
             if converted_count > 0:
                 # Supprimer l'ancien dossier et renommer le nouveau

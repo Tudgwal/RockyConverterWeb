@@ -84,13 +84,6 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-# ImageMagick
-if ! command -v convert &> /dev/null; then
-    echo "❌ ImageMagick n'est pas installé"
-    echo "   Installez avec: sudo apt install imagemagick"
-    exit 1
-fi
-
 echo "✅ Prérequis vérifiés"
 
 # Créer l'environnement virtuel

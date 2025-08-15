@@ -1,12 +1,12 @@
 # Rocky Converter Web
 
-Une application web Django pour la gestion et la conversion automatique d'albums photo avec ImageMagick.
+Une application web Django pour la gestion et la conversion automatique d'albums photo avec Pillow (PIL).
 
 ## 📋 Description
 
 Rocky Converter Web est une application qui permet aux utilisateurs de :
 - Uploader des albums photo (fichiers individuels ou archives ZIP/TAR)
-- Convertir automatiquement les images au format 1920x1080 avec ImageMagick
+- Convertir automatiquement les images au format 1920x1080 avec Pillow
 - Suivre le statut de conversion en temps réel
 - Télécharger les albums convertis en ZIP
 - Gérer les albums avec suppression automatique après 14 jours
@@ -15,7 +15,7 @@ Rocky Converter Web est une application qui permet aux utilisateurs de :
 
 - 🔐 **Système d'authentification** avec approbation d'utilisateurs
 - 📤 **Upload flexible** : photos individuelles ou archives compressées
-- 🖼️ **Conversion automatique** avec ImageMagick (redimensionnement 1920x1080)
+- 🖼️ **Conversion automatique** avec Pillow (redimensionnement 1920x1080)
 - 📊 **Statuts de conversion** : En attente → En cours → Converti/Erreur
 - 📥 **Téléchargement ZIP** des albums convertis
 - 🗑️ **Nettoyage automatique** des anciens albums (cron job)
@@ -26,7 +26,7 @@ Rocky Converter Web est une application qui permet aux utilisateurs de :
 
 - **Backend** : Django 5.0, Python 3.12
 - **Base de données** : SQLite (PostgreSQL/MySQL supportées)
-- **Conversion d'images** : ImageMagick
+- **Conversion d'images** : Pillow (Python Imaging Library)
 - **Frontend** : HTML/CSS/JavaScript
 - **Gestion des archives** : zipfile, tarfile (bibliothèques standard Python)
 - **Configuration** : python-dotenv
@@ -77,11 +77,8 @@ Le projet inclut un script d'installation automatique qui gère le développemen
 sudo apt update
 sudo apt install python3 python3-pip python3-venv
 
-# Installer ImageMagick
-sudo apt install imagemagick
-
 # Vérifier l'installation
-convert --version
+python3 --version
 ```
 
 ### Configuration du projet
@@ -414,10 +411,13 @@ print(f'Convertis: {Album.objects.filter(conversion_status=\"completed\").count(
 
 ### Problèmes courants
 
-**ImageMagick non trouvé** :
+**Erreur de conversion d'images** :
 ```bash
-sudo apt install imagemagick
-which convert  # Vérifier l'installation
+# Vérifier que Pillow est bien installé
+pip list | grep -i pillow
+
+# Réinstaller Pillow si nécessaire
+pip install --upgrade Pillow
 ```
 
 **Permissions de fichiers** :
