@@ -18,6 +18,7 @@ from django.http import HttpResponse, Http404
 from django.utils.encoding import smart_str
 from PIL import Image, ImageOps
 import logging
+import threading
 
 from ..models import Album, UserProfile
 from ..forms import AlbumUploadForm
@@ -105,7 +106,10 @@ def resize_images_with_pillow(input_dir, output_dir, album=None):
     """
     Redimensionne toutes les images d'un dossier à 1920x1080 en utilisant Pillow
     Met à jour la progression si un album est fourni
+    Optimisé pour réduire l'utilisation mémoire
     """
+    import gc  # Pour forcer le garbage collection
+
     # Extensions d'images supportées par Pillow
     image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.tiff', '*.bmp', '*.webp', 
                        '*.JPG', '*.JPEG', '*.PNG', '*.TIFF', '*.BMP', '*.WEBP']
@@ -156,8 +160,8 @@ def resize_images_with_pillow(input_dir, output_dir, album=None):
                 # Utilise LANCZOS pour une meilleure qualité
                 img.thumbnail((1920, 1080), Image.LANCZOS)
                 
-                # Sauvegarder l'image redimensionnée
-                img.save(output_path, 'JPEG', quality=90, optimize=True)
+                # Sauvegarder l'image redimensionnée avec une qualité réduite pour économiser l'espace
+                img.save(output_path, 'JPEG', quality=85, optimize=True, progressive=True)
                 
             converted_count += 1
             
@@ -173,6 +177,10 @@ def resize_images_with_pillow(input_dir, output_dir, album=None):
             
             logger.info(f"Progression: {progress}% ({i + 1}/{total_files}) - {output_filename}")
             
+            # Forcer le garbage collection toutes les 10 images pour libérer la mémoire
+            if (i + 1) % 10 == 0:
+                gc.collect()
+            
         except Exception as e:
             error_msg = f"Erreur lors de la conversion de {image_file}: {str(e)}"
             logger.error(error_msg)
@@ -186,7 +194,12 @@ def resize_images_with_pillow(input_dir, output_dir, album=None):
                 album.current_file_name = f"Erreur: {os.path.basename(image_file)}"
                 album.save(update_fields=['conversion_progress', 'current_file_index', 'current_file_name'])
             
+            # Forcer le garbage collection même en cas d'erreur
+            gc.collect()
             continue
+
+    # Garbage collection final
+    gc.collect()
     
     if errors:
         logger.warning(f"Conversion terminée avec {len(errors)} erreur(s)")

@@ -7,16 +7,19 @@ import multiprocessing
 bind = "127.0.0.1:8000"
 backlog = 2048
 
-# Worker processes
-workers = multiprocessing.cpu_count() * 2 + 1
+# Worker processes - Réduit pour économiser la mémoire lors des conversions
+workers = max(2, multiprocessing.cpu_count() // 2)  # Moins de workers pour les tâches intensives
 worker_class = "sync"
 worker_connections = 1000
-timeout = 30
+timeout = 1800  # 30 minutes pour les conversions longues
 keepalive = 2
 
 # Restart workers after this many requests, to help prevent memory leaks
-max_requests = 1000
-max_requests_jitter = 50
+max_requests = 100  # Redémarrage plus fréquent pour éviter les fuites mémoire
+max_requests_jitter = 10
+
+# Limite mémoire par worker (optionnel, nécessite psutil)
+# worker_memory_limit = 2 * 1024 * 1024 * 1024  # 2GB par worker
 
 # Logging
 accesslog = "/var/log/rockyconverter/access.log"
